@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class SearchBarField extends StatelessWidget {
   final String hint;
@@ -47,7 +48,34 @@ class SearchBarField extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
               ),
               onChanged: onChanged,
+              onSubmitted: (_) {
+                // Enter -> next match
+                onNext();
+              },
+              inputFormatters: const <TextInputFormatter>[],
+              // Handle Shift+Enter for previous
+              keyboardType: TextInputType.text,
+              textInputAction: TextInputAction.search,
+              onEditingComplete: () {},
             ),
+          ),
+          // Key event handler for Shift+Enter
+          Focus(
+            onKeyEvent: (node, event) {
+              if (event is KeyDownEvent &&
+                  event.logicalKey == LogicalKeyboardKey.enter) {
+                final isShift = HardwareKeyboard.instance.logicalKeysPressed
+                        .contains(LogicalKeyboardKey.shiftLeft) ||
+                    HardwareKeyboard.instance.logicalKeysPressed
+                        .contains(LogicalKeyboardKey.shiftRight);
+                if (isShift) {
+                  onPrev();
+                  return KeyEventResult.handled;
+                }
+              }
+              return KeyEventResult.ignored;
+            },
+            child: const SizedBox.shrink(),
           ),
           if (matchCount > 0)
             Padding(

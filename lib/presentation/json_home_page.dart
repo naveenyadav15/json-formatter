@@ -5,7 +5,28 @@ import '../domain/json_formatter.dart';
 import '../domain/search_manager.dart';
 import 'widgets/input_panel.dart';
 import 'widgets/output_panel.dart';
-import 'widgets/sidebar.dart';
+// import 'widgets/sidebar.dart';
+
+// App-wide intents (top-level)
+class _FocusSearchIntent extends Intent {
+  const _FocusSearchIntent();
+}
+
+class _NextMatchIntent extends Intent {
+  const _NextMatchIntent();
+}
+
+class _PrevMatchIntent extends Intent {
+  const _PrevMatchIntent();
+}
+
+class _ClearAllIntent extends Intent {
+  const _ClearAllIntent();
+}
+
+class _CopyOutputIntent extends Intent {
+  const _CopyOutputIntent();
+}
 
 class JsonHomePage extends StatefulWidget {
   const JsonHomePage({super.key});
@@ -28,10 +49,9 @@ class _JsonHomePageState extends State<JsonHomePage> {
 
   @override
   void initState() {
-
     super.initState();
-     jsonFormatter = Provider.of<JsonFormatter>(context, listen: false);
-     searchManager = Provider.of<SearchManager>(context, listen: false);
+    jsonFormatter = Provider.of<JsonFormatter>(context, listen: false);
+    searchManager = Provider.of<SearchManager>(context, listen: false);
   }
 
   void clearAll() {
@@ -39,6 +59,7 @@ class _JsonHomePageState extends State<JsonHomePage> {
     jsonFormatter.clear();
     searchManager.clear();
   }
+
   @override
   void dispose() {
     _inputController.dispose();
@@ -49,7 +70,6 @@ class _JsonHomePageState extends State<JsonHomePage> {
     _outputSearchFocusNode.dispose();
     super.dispose();
   }
-
 
   void _scrollToInputMatch(SearchManager searchManager) {
     if (searchManager.inputMatches.isEmpty) return;
@@ -97,16 +117,34 @@ class _JsonHomePageState extends State<JsonHomePage> {
     }
 
     return Shortcuts(
-      shortcuts: {
-        // Define Cmd + F (or Ctrl + F) shortcut
-        LogicalKeySet(LogicalKeyboardKey.meta,
-            LogicalKeyboardKey.keyF): const ActivateIntent(),
-        LogicalKeySet(LogicalKeyboardKey.control,
-            LogicalKeyboardKey.keyF): const ActivateIntent(),
+      shortcuts: <ShortcutActivator, Intent>{
+        // Focus search: Cmd/Ctrl+F
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyF):
+            const _FocusSearchIntent(),
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyF):
+            const _FocusSearchIntent(),
+        // Next match: Cmd/Ctrl+G, F3
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyG):
+            const _NextMatchIntent(),
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyG):
+            const _NextMatchIntent(),
+        SingleActivator(LogicalKeyboardKey.f3): const _NextMatchIntent(),
+        // Prev match: Shift+Cmd/Ctrl+G, Shift+F3
+        SingleActivator(LogicalKeyboardKey.keyG, control: true, shift: true):
+            const _PrevMatchIntent(),
+        SingleActivator(LogicalKeyboardKey.keyG, meta: true, shift: true):
+            const _PrevMatchIntent(),
+        SingleActivator(LogicalKeyboardKey.f3, shift: true):
+            const _PrevMatchIntent(),
+        // Clear all: Cmd/Ctrl+K
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyK):
+            const _ClearAllIntent(),
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyK):
+            const _ClearAllIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
-          ActivateIntent: CallbackAction<Intent>(
+          _FocusSearchIntent: CallbackAction<_FocusSearchIntent>(
             onInvoke: (intent) {
               if (_outputPanelActive) {
                 _outputSearchFocusNode.requestFocus();
@@ -116,14 +154,44 @@ class _JsonHomePageState extends State<JsonHomePage> {
               return null;
             },
           ),
+          _NextMatchIntent: CallbackAction<_NextMatchIntent>(
+            onInvoke: (intent) {
+              if (_outputPanelActive) {
+                searchManager.nextOutputMatch();
+                _scrollToOutputMatch(searchManager);
+              } else {
+                searchManager.nextInputMatch();
+                _scrollToInputMatch(searchManager);
+              }
+              return null;
+            },
+          ),
+          _PrevMatchIntent: CallbackAction<_PrevMatchIntent>(
+            onInvoke: (intent) {
+              if (_outputPanelActive) {
+                searchManager.prevOutputMatch();
+                _scrollToOutputMatch(searchManager);
+              } else {
+                searchManager.prevInputMatch();
+                _scrollToInputMatch(searchManager);
+              }
+              return null;
+            },
+          ),
+          _ClearAllIntent: CallbackAction<_ClearAllIntent>(
+            onInvoke: (intent) {
+              clearAll();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Cleared input and output')),
+              );
+              return null;
+            },
+          ),
         },
         child: Scaffold(
           backgroundColor: theme.colorScheme.surface,
           body: Row(
             children: [
-               Sidebar(
-                onClearAll: clearAll,
-              ),
               Expanded(
                 child: Column(
                   children: [
@@ -132,22 +200,21 @@ class _JsonHomePageState extends State<JsonHomePage> {
                       child: Row(
                         children: [
                           InputPanel(
-                            splitRatio: _splitRatio,
-                            controller: _inputController,
-                            scrollController: _inputScrollController,
-                            focusNode: _inputFieldFocusNode,
-                            searchFocusNode: _inputSearchFocusNode,
-                            onPanelTap: () {
+                              splitRatio: _splitRatio,
+                              controller: _inputController,
+                              scrollController: _inputScrollController,
+                              focusNode: _inputFieldFocusNode,
+                              searchFocusNode: _inputSearchFocusNode,
+                              onPanelTap: () {
                                 setState(() => _outputPanelActive = false);
-                            }
-                          ),
+                              }),
                           _buildResizeHandle(theme),
                           OutputPanel(
                             splitRatio: _splitRatio,
                             scrollController: _outputScrollController,
                             searchFocusNode: _outputSearchFocusNode,
                             onPanelTap: () {
-                                setState(() => _outputPanelActive = true);
+                              setState(() => _outputPanelActive = true);
                             },
                           ),
                         ],

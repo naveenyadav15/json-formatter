@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:grafna/domain/search_manager.dart';
 import 'package:provider/provider.dart';
 import '../../domain/json_formatter.dart';
 import 'search_bar.dart';
 import 'highlight_builder.dart';
+import 'line_number_gutter.dart';
 
 class OutputPanel extends StatefulWidget {
   final double splitRatio;
@@ -69,7 +71,7 @@ class _OutputPanelState extends State<OutputPanel> {
     return Expanded(
       flex: ((1 - widget.splitRatio) * 100).round(),
       child: Listener(
-        onPointerDown:(event){
+        onPointerDown: (event) {
           widget.onPanelTap();
         },
         child: Container(
@@ -113,35 +115,81 @@ class _OutputPanelState extends State<OutputPanel> {
                 matchCount: searchManager.outputMatches.length,
                 currentMatch: searchManager.outputCurrentMatch,
               ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4, right: 6),
+                  child: TextButton.icon(
+                    onPressed: () {
+                      final text = jsonFormatter.error.isNotEmpty
+                          ? jsonFormatter.error
+                          : jsonFormatter.output;
+                      if (text.isNotEmpty) {
+                        Clipboard.setData(ClipboardData(text: text));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Copied to clipboard')),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.copy, size: 18),
+                    label: const Text('Copy output'),
+                  ),
+                ),
+              ),
               const SizedBox(height: 4),
               Expanded(
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: (notification) {
-                    // You can add analytics or other logic here if needed
-                    return false;
-                  },
-                  child: SingleChildScrollView(
-                    controller: widget.scrollController,
-                    padding: const EdgeInsets.all(16),
-                    child: SelectableText.rich(
-                      HighlightBuilder(
-                        searchQuery: searchManager.outputSearchQuery,
-                        matches: searchManager.outputMatches,
-                        currentMatch: searchManager.outputCurrentMatch,
-                        theme: theme,
-                      ).build(
-                        jsonFormatter.error.isNotEmpty
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Line numbers based on output or error text
+                    AnimatedBuilder(
+                      animation: jsonFormatter,
+                      builder: (context, _) {
+                        final text = jsonFormatter.error.isNotEmpty
                             ? jsonFormatter.error
-                            : jsonFormatter.output,
-                        textStyle: TextStyle(
-                          fontFamily: 'SF Mono',
-                          fontSize: 13,
-                          height: 1.4,
-                          color: theme.colorScheme.onSurface,
+                            : jsonFormatter.output;
+                        final totalLines = text.split('\n').length;
+                        return LineNumberGutter(
+                          totalLines: totalLines,
+                          scrollOffset: widget.scrollController.hasClients
+                              ? widget.scrollController.offset
+                              : 0.0,
+                          lineHeight: 15.0,
+                          width: 44,
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                        );
+                      },
+                    ),
+                    Expanded(
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          return false;
+                        },
+                        child: SingleChildScrollView(
+                          controller: widget.scrollController,
+                          padding: const EdgeInsets.all(16),
+                          child: SelectableText.rich(
+                            HighlightBuilder(
+                              searchQuery: searchManager.outputSearchQuery,
+                              matches: searchManager.outputMatches,
+                              currentMatch: searchManager.outputCurrentMatch,
+                              theme: theme,
+                            ).build(
+                              jsonFormatter.error.isNotEmpty
+                                  ? jsonFormatter.error
+                                  : jsonFormatter.output,
+                              textStyle: TextStyle(
+                                fontFamily: 'SF Mono',
+                                fontSize: 13,
+                                height: 1.4,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ],
