@@ -18,7 +18,7 @@ class MyJsonApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => JsonFormatter()),
         ChangeNotifierProvider(create: (_) => SearchManager()),
       ],
-      child: MaterialApp(
+      child: MaterialApp(locale: Locale('en_in'),
         title: 'Grafna JSON Formatter',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
