@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import '../../domain/json_formatter.dart';
 import 'search_bar.dart';
 import 'highlight_builder.dart';
-import 'line_number_gutter.dart';
+// Removed custom gutter; numbering handled in formatted text
 
 class OutputPanel extends StatefulWidget {
   final double splitRatio;
@@ -27,6 +27,7 @@ class OutputPanel extends StatefulWidget {
 
 class _OutputPanelState extends State<OutputPanel> {
   late final TextEditingController _searchController;
+  String _currentDisplayText = '';
 
   @override
   void initState() {
@@ -40,14 +41,10 @@ class _OutputPanelState extends State<OutputPanel> {
     super.dispose();
   }
 
-  void _scrollToCurrentMatch(
-      SearchManager searchManager, JsonFormatter jsonFormatter) {
+  void _scrollToCurrentMatch(SearchManager searchManager) {
     if (searchManager.outputMatches.isEmpty) return;
     final match = searchManager.outputMatches[searchManager.outputCurrentMatch];
-    final text = jsonFormatter.error.isNotEmpty
-        ? jsonFormatter.error
-        : jsonFormatter.output;
-    final beforeMatch = text.substring(0, match.start);
+    final beforeMatch = _currentDisplayText.substring(0, match.start);
     final lineCount = '\n'.allMatches(beforeMatch).length;
     final offset = (lineCount * 15.0) - 16.0;
     widget.scrollController.animateTo(
@@ -97,99 +94,147 @@ class _OutputPanelState extends State<OutputPanel> {
                   );
                   // Scroll to match after search changes
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _scrollToCurrentMatch(searchManager, jsonFormatter);
+                    _scrollToCurrentMatch(searchManager);
                   });
                 },
                 onNext: () {
                   searchManager.nextOutputMatch();
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _scrollToCurrentMatch(searchManager, jsonFormatter);
+                    _scrollToCurrentMatch(searchManager);
                   });
                 },
                 onPrev: () {
                   searchManager.prevOutputMatch();
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _scrollToCurrentMatch(searchManager, jsonFormatter);
+                    _scrollToCurrentMatch(searchManager);
                   });
                 },
                 matchCount: searchManager.outputMatches.length,
                 currentMatch: searchManager.outputCurrentMatch,
               ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 4, right: 6),
-                  child: TextButton.icon(
-                    onPressed: () {
-                      final text = jsonFormatter.error.isNotEmpty
-                          ? jsonFormatter.error
-                          : jsonFormatter.output;
-                      if (text.isNotEmpty) {
-                        Clipboard.setData(ClipboardData(text: text));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Copied to clipboard')),
-                        );
-                      }
-                    },
-                    icon: const Icon(Icons.copy, size: 18),
-                    label: const Text('Copy output'),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
               Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Line numbers based on output or error text
-                    AnimatedBuilder(
-                      animation: jsonFormatter,
-                      builder: (context, _) {
-                        final text = jsonFormatter.error.isNotEmpty
-                            ? jsonFormatter.error
-                            : jsonFormatter.output;
-                        final totalLines = text.split('\n').length;
-                        return LineNumberGutter(
-                          totalLines: totalLines,
-                          scrollOffset: widget.scrollController.hasClients
-                              ? widget.scrollController.offset
-                              : 0.0,
-                          lineHeight: 15.0,
-                          width: 44,
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                        );
-                      },
-                    ),
-                    Expanded(
-                      child: NotificationListener<ScrollNotification>(
-                        onNotification: (notification) {
-                          return false;
-                        },
-                        child: SingleChildScrollView(
-                          controller: widget.scrollController,
-                          padding: const EdgeInsets.all(16),
-                          child: SelectableText.rich(
-                            HighlightBuilder(
-                              searchQuery: searchManager.outputSearchQuery,
-                              matches: searchManager.outputMatches,
-                              currentMatch: searchManager.outputCurrentMatch,
-                              theme: theme,
-                            ).build(
-                              jsonFormatter.error.isNotEmpty
-                                  ? jsonFormatter.error
-                                  : jsonFormatter.output,
-                              textStyle: TextStyle(
-                                fontFamily: 'SF Mono',
-                                fontSize: 13,
-                                height: 1.4,
-                                color: theme.colorScheme.onSurface,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final baseText = jsonFormatter.error.isNotEmpty
+                        ? jsonFormatter.error
+                        : jsonFormatter.output;
+
+                    // Estimate max characters per line for mono font
+                    const fontSize = 13.0;
+                    final availablePx =
+                        (constraints.maxWidth - 32).clamp(100.0, 100000.0);
+                    final charWidth =
+                        fontSize * 0.6; // approximation for monospace
+                    final maxChars = (availablePx / charWidth).floor();
+
+                    final displayText = baseText.isEmpty
+                        ? ''
+                        : formatJsonWithLineNumbers(baseText,
+                            maxLineWidth: maxChars);
+
+                    // Keep search in sync with formatted text
+                    if (searchManager.outputSearchQuery.isNotEmpty) {
+                      searchManager.updateOutputMatches(
+                          displayText, searchManager.outputSearchQuery);
+                    }
+
+                    if (_currentDisplayText != displayText) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) {
+                          setState(() {
+                            _currentDisplayText = displayText;
+                          });
+                        }
+                      });
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4, right: 6),
+                            child: TextButton.icon(
+                              onPressed: () {
+                                // Copy unnumbered text (no gutter)
+                                if (baseText.isNotEmpty) {
+                                  Clipboard.setData(
+                                      ClipboardData(text: baseText));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text('Copied to clipboard')),
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.copy, size: 18),
+                              label: const Text('Copy output'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Expanded(
+                          child: NotificationListener<ScrollNotification>(
+                            onNotification: (notification) {
+                              return false;
+                            },
+                            child: SingleChildScrollView(
+                              controller: widget.scrollController,
+                              padding: const EdgeInsets.all(16),
+                              child: Stack(
+                                children: [
+                                  // Background stripes under the text, not overlapping glyphs
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: (displayText.isEmpty
+                                            ? 0
+                                            : ('\n'
+                                                    .allMatches(displayText)
+                                                    .length +
+                                                1)) *
+                                        (fontSize * 1.4),
+                                    child: CustomPaint(
+                                      painter: _AlternatingLinePainter(
+                                        totalLines: displayText.isEmpty
+                                            ? 0
+                                            : '\n'
+                                                    .allMatches(displayText)
+                                                    .length +
+                                                1,
+                                        lineHeight: fontSize * 1.4,
+                                        colorOdd: theme
+                                            .colorScheme.surfaceVariant
+                                            .withOpacity(0.08),
+                                        colorEven: Colors.transparent,
+                                      ),
+                                    ),
+                                  ),
+                                  SelectableText.rich(
+                                    HighlightBuilder(
+                                      searchQuery:
+                                          searchManager.outputSearchQuery,
+                                      matches: searchManager.outputMatches,
+                                      currentMatch:
+                                          searchManager.outputCurrentMatch,
+                                      theme: theme,
+                                    ).build(
+                                      displayText,
+                                      textStyle: TextStyle(
+                                        fontFamily: 'SF Mono',
+                                        fontSize: fontSize,
+                                        height: 1.4,
+                                        color: theme.colorScheme.onSurface,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                  ],
+                      ],
+                    );
+                  },
                 ),
               ),
             ],
@@ -197,5 +242,39 @@ class _OutputPanelState extends State<OutputPanel> {
         ),
       ),
     );
+  }
+}
+
+/// Paints alternating background stripes for each display line.
+class _AlternatingLinePainter extends CustomPainter {
+  final int totalLines;
+  final double lineHeight;
+  final Color colorOdd;
+  final Color colorEven;
+
+  _AlternatingLinePainter({
+    required this.totalLines,
+    required this.lineHeight,
+    required this.colorOdd,
+    required this.colorEven,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
+    for (int i = 0; i < totalLines; i++) {
+      paint.color = (i % 2 == 0) ? colorOdd : colorEven;
+      final top = i * lineHeight;
+      final rect = Rect.fromLTWH(0, top, size.width, lineHeight);
+      canvas.drawRect(rect, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AlternatingLinePainter oldDelegate) {
+    return oldDelegate.totalLines != totalLines ||
+        oldDelegate.lineHeight != lineHeight ||
+        oldDelegate.colorOdd != colorOdd ||
+        oldDelegate.colorEven != colorEven;
   }
 }
