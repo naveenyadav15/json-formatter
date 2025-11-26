@@ -1,19 +1,21 @@
-name: Build & Deploy Flutter Web
+name: Deploy Flutter Web to GitHub Pages
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch:  # Allows manual trigger
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write  # Required for deploy-pages
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -27,12 +29,14 @@ jobs:
       - name: Build Flutter Web
         run: flutter build web --release --base-href "/json-formatter/"
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Setup Pages
+        uses: actions/configure-pages@v5  # Optional: Configures Node if needed (skip for pure static)
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./build/web
-          publish_branch: gh-pages
-          destination_dir: json-formatter
-          allow_empty_commit: true
-          force_orphan: true
+          path: ./build/web  # Uploads your built files
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
