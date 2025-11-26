@@ -3,7 +3,7 @@ name: Build & Deploy Flutter Web
 on:
   push:
     branches:
-      - main   # deploy when you push to "main" branch
+      - main
 
 jobs:
   build-and-deploy:
@@ -22,7 +22,7 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        run: flutter clean && flutter pub get
 
       - name: Build Flutter Web
         run: flutter build web --release --base-href "/json-formatter/"
@@ -34,3 +34,5 @@ jobs:
           publish_dir: ./build/web
           publish_branch: gh-pages
           destination_dir: json-formatter
+          allow_empty_commit: true
+          force_orphan: true
