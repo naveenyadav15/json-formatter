@@ -1,20 +1,4 @@
 # grafna
 
-A new Flutter project.
-
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-
-Zip cmd: 
-cd build/macos/Build/Products/Release
-zip -r MyApp.zip Grafna\ JSON\ Formatter.app  
+You can access this here -
+https://naveenyadav15.github.io/json-formatter/
